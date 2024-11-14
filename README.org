@@ -107,9 +107,54 @@ sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 's
                     :add-column '(("email" . "TEXT")))
 #+end_src
 
-** CLI - TODO
-It is planned to have a robust CLI interface just like the python sqlite-utils
-project. We will probably use clingon for that.
+** CLI
+The project includes a command-line interface for interacting with SQLite databases.
+
+*** Building the CLI
+
+To build the CLI executable:
+
+#+begin_src sh
+# From within the root project directory:
+sbcl --load "sql-utils.asd" --eval "(ql:quickload '(:sql-utils :sql-utils/sqlite-cli))" --eval "(dump-system-executable :sql-utils/sqlite-cli)"
+#+end_src
+
+This will create an executable at =bin/sql-utils=.
+
+*** Usage Examples
+
+List tables in a database:
+
+#+begin_src sh
+$ bin/sql-utils tables examples/test.db
+test_table
+test_table_2
+test_table_3
+#+end_src
+
+View rows in a table:
+
+#+begin_src sh
+$ bin/sql-utils rows examples/test.db test_table
+(id 22 name PARENT_FOO parent_id NIL)
+(id 44 name CHILD_FOO_1 parent_id 22)
+#+end_src
+
+*** Available Commands
+
+- =tables= - List tables in the database
+  - =--fts4= - Show only FTS4 enabled tables
+  - =--fts5= - Show only FTS5 enabled tables  
+  - =--counts= - Include row counts
+  - =--columns= - Show column information
+  - =--schema= - Show table schemas
+
+- =rows= - Output rows from a table
+  - =-c/--column= - Select specific columns
+  - =--where= - Filter rows with WHERE clause
+  - =-o/--order= - Order results
+  - =--limit= - Limit number of rows
+  - =--offset= - Skip initial rows
 
 ** Contributing
 
