@@ -1,0 +1,130 @@
+#+TITLE: cl-sql-utils
+#+AUTHOR: Joel Boehland
+#+DATE: 2024
+
+* cl-sql-utils - A Common Lisp SQL Database Utility Library
+
+cl-sql-utils is a Common Lisp library providing a high-level interface for
+working with SQL databases, with initial support for SQLite. It aims to provide
+an intuitive API similar to Python's sqlite-utils while embracing Common Lisp
+idioms.
+
+** Features
+
+- Simple database connection management
+- Table creation and modification
+- Foreign key support
+- Schema transformation capabilities
+- Row insertion and querying
+- (PLANNED) Index management
+- (PLANNED) Transaction support
+- (PLANNED) robust CLI interface
+
+** Installation
+
+This project is not in quicklisp. You will need to checkout this project into your $HOME/quicklisp/local-projects dir. Then:
+
+#+begin_src lisp
+(ql:quickload :sql-utils)
+#+end_src
+
+Run the tests:
+#+begin_src sh
+# assumes the project is in your quicklist local-projects dir
+sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 'sql-utils-test.sql-utils-tests::sql-utils-suite)" --eval "(quit)"
+#+end_src
+
+** Quick Start
+
+#+begin_src lisp
+;; Create an in-memory database
+(defvar *db* (sql-utils:make-db-connection :sqlite :memory t))
+
+;; Create a table
+(sql-utils:create-table *db* "people"
+                       '(("id" . "INTEGER")
+                         ("name" . "TEXT")
+                         ("age" . "INTEGER"))
+                       :pk "id")
+
+;; Insert some data
+(sql-utils:insert (sql-utils:make-table *db* "people")
+                 '(:name "Alice" :age 30))
+
+;; Query the data
+(sql-utils:rows (sql-utils:make-table *db* "people"))
+#+end_src
+
+** API Documentation
+
+*** Database Operations
+
+- =make-db-connection= - Create a new database connection
+- =create-table= - Create a new table
+- =execute= - Execute raw SQL
+- =rows= - Query rows from a table
+
+*** Table Operations
+
+- =insert= - Insert a single record
+- =insert-all= - Insert multiple records
+- =transform= - Modify table schema
+- =add-column= - Add a new column
+- =add-foreign-key= - Add a foreign key constraint
+
+*** Query Operations
+
+- =rows-where= - Query rows with conditions
+- =row-count= - Get total number of rows
+- =lookup= - Find a record by primary key
+
+** Examples
+
+*** Creating Tables with Foreign Keys
+
+#+begin_src lisp
+;; Create parent table
+(sql-utils:create-table *db* "authors"
+                       '(("id" . "INTEGER")
+                         ("name" . "TEXT"))
+                       :pk "id")
+
+;; Create child table with foreign key
+(sql-utils:create-table *db* "books"
+                       '(("id" . "INTEGER")
+                         ("title" . "TEXT")
+                         ("author_id" . "INTEGER"))
+                       :pk "id"
+                       :foreign-keys '(("author_id" "authors" "id")))
+#+end_src
+
+*** Transforming Tables
+
+#+begin_src lisp
+;; Add a column and change types
+(sql-utils:transform table
+                    :types '(("age" . "TEXT"))
+                    :add-column '(("email" . "TEXT")))
+#+end_src
+
+** CLI - TODO
+It is planned to have a robust CLI interface just like the python sqlite-utils
+project. We will probably use clingon for that.
+
+** Contributing
+
+Contributions are welcome! Please feel free to submit pull requests.
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+** License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+** Acknowledgments
+
+This project was heavily inspired by the Python sqlite-utils library by Simon Willison.
