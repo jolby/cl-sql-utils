@@ -30,7 +30,7 @@ This project is not in quicklisp. You will need to checkout this project into yo
 
 Run the tests:
 #+begin_src sh
-# assumes the project is in your quicklist local-projects dir
+# assumes the project is in your quicklisp local-projects dir
 sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 'sql-utils-test.sql-utils-tests::sql-utils-suite)" --eval "(quit)"
 #+end_src
 
