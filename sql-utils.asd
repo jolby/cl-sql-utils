@@ -49,13 +49,16 @@
   :author "Joel Boehland <jboehland@gmail.com>"
   :version "0.1.0"
   :license "MIT"
-  :description "Sqlite3 CLI utilities in Common Lisp. Implementation of sql-utils protocols for sqlite3 databases."
+  :description "Sqlite3 CLI utility binary in Common Lisp. Implementation of sql-utils protocols for sqlite3 databases."
   :depends-on (:alexandria :str :clingon
                            :cl-dbi :sql-utils :sql-utils/sqlite-utils)
   :serial t
   :components ((:module "src/cli/"
                 :components ((:file "packages")
-                             (:file "sqlite-cli")))))
+                             (:file "sqlite-cli"))))
+  :build-operation "program-op"
+  :build-pathname "bin/sql-utils" ;; Should this be sqlite-utils?
+  :entry-point "sql-utils/sqlite-cli:main")
 
 (asdf:defsystem sql-utils/tests
   :author  "Joel Boehland <jboehland@gmail.com>"
@@ -71,3 +74,23 @@
                           :fiveam :run!
                           (uiop:find-symbol* :sql-utils-suite
                                              :sql-utils-test.sql-utils-tests))))
+
+(defun %this-file ()
+  (asdf:system-relative-pathname
+   (asdf:find-system :sql-utils) "sql-utils.asd"))
+;; (%this-file)
+
+(defun dump-system-executable (system &key (lisp-exe "sbcl"))
+  (let* (;; (system (find-system system))
+         (this-file (%this-file))
+         (cmd (format nil "~a --load '~a' --eval '~a' --eval '~a' --eval '~a'"
+                      lisp-exe
+                      (namestring this-file)
+                      (format nil "(ql:quickload :~a)" system)
+                      (format nil "(asdf:make :~a)" system)
+                      "(uiop:quit)")))
+    (format t "~&Dumping ~a executable from ~a~%" system this-file)
+    (format t "~&Running ~a~%" cmd)
+    (uiop:run-program cmd)))
+
+;; (dump-system-executable :sql-utils/sqlite-cli)
