@@ -21,4 +21,5 @@
 *.elc
 .env
 .local/
+bin/*
 tmp/
