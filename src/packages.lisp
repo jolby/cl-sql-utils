@@ -23,6 +23,7 @@
    :database-p
    :open-p
    :make-db-connection
+   :schema
    :table-names
    :view-names
    :make-table
