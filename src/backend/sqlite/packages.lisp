@@ -1,7 +1,6 @@
 (defpackage :sql-utils/sqlite
   (:use :cl)
-  (:local-nicknames
-   (:squ :sql-utils))
+  (:local-nicknames (:squ :sql-utils))
   (:import-from :sql-utils
                 ;; Conditions
                 :alter-error

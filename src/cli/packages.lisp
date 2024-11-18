@@ -1,7 +1,6 @@
 (defpackage :sql-utils/sqlite-cli
   (:use :cl)
-  (:local-nicknames
-   (:squ :sql-utils))
+  (:local-nicknames (:squ :sql-utils))
   (:import-from :clingon)
   (:import-from :sql-utils
                 ;; Conditions
@@ -44,5 +43,4 @@
                 :exists-p
                 :create
                 :drop)
-  (:export
-   :main))
+  (:export :main))

@@ -1,7 +1,8 @@
 (in-package :sql-utils/sqlite)
 
 ;; Sqlite table specialization marker class
-(defclass sqlite-table (sql-utils:table) ())
+
+(defclass sqlite-table (table) ())
 
 (defmethod initialize-instance :after ((table sqlite-table) &key)
   ;; nothing yet...
@@ -39,5 +40,6 @@
   ;; Refresh table object from DB
   (let ((refreshed-table (make-table-from-db (db table) (name table))))
     (setf (slot-value table 'columns) (slot-value refreshed-table 'columns)
-          (slot-value table 'foreign-keys) (slot-value refreshed-table 'foreign-keys))
+          (slot-value table 'foreign-keys)
+            (slot-value refreshed-table 'foreign-keys))
     table))
