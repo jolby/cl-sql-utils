@@ -140,6 +140,19 @@ $ bin/sql-utils rows examples/test.db test_table
 (id 44 name CHILD_FOO_1 parent_id 22)
 #+end_src
 
+Insert records into a table:
+
+#+begin_src sh
+# Insert a single record
+$ echo '(:name "FOO")' | bin/sql-utils insert test.db chickens -
+
+# Insert multiple records
+$ echo '((:id 82 :name "BAZ" :parent_id 44) (:id 67 :name "BUB" :parent_id 44))' | bin/sql-utils insert test.db chickens -
+
+# Insert with primary key
+$ echo '(:id 1 :name "BAR")' | bin/sql-utils insert test.db chickens --pk id -
+#+end_src
+
 *** Available Commands
 
 - =tables= - List tables in the database
@@ -155,6 +168,10 @@ $ bin/sql-utils rows examples/test.db test_table
   - =-o/--order= - Order results
   - =--limit= - Limit number of rows
   - =--offset= - Skip initial rows
+
+- =insert= - Insert records into a table
+  - =--pk= - Specify column(s) to use as primary key
+  - =--nl= - Read newline-delimited JSON (not yet implemented)
 
 ** Contributing
 
