@@ -145,9 +145,15 @@
     (let ((input (read-line *standard-input* nil nil)))
       (when input
         ;; Parse the input as a Lisp form
-        (let ((record (read-from-string input)))
-          ;; Insert the record
-          (squ:insert table record :pk pk))))))
+        (let ((records (read-from-string input)))
+          ;; Handle both single record and list of records
+          (if (and (listp records) 
+                   (every #'listp records)
+                   (not (keywordp (first records))))
+              ;; Insert multiple records
+              (squ:insert-all table records :pk pk)
+              ;; Insert single record
+              (squ:insert table records :pk pk)))))))
 
 (defun insert/command ()
   "Creates the insert command"
