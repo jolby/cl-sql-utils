@@ -120,9 +120,48 @@
 
 (defun top-level/options () "Returns options for the top-level command" (list))
 
+(defun insert/options ()
+  "Returns options for the insert command"
+  (list
+    (clingon:make-option :switch
+                         :description "Read newline-delimited JSON"
+                         :long-name "nl"
+                         :key :nl)
+    (clingon:make-option :list
+                         :description "Column(s) to use as primary key"
+                         :long-name "pk"
+                         :key :pk)))
+
+(defun insert/handler (cmd)
+  "Handler for the insert command"
+  (let* ((args (clingon:command-arguments cmd))
+         (path (first args))
+         (table-name (second args))
+         (db (squ:make-db-connection :sqlite :filename path))
+         (table (squ:make-table db table-name))
+         (pk (clingon:getopt cmd :pk))
+         (nl (clingon:getopt cmd :nl)))
+    ;; Read from stdin
+    (let ((input (read-line *standard-input* nil nil)))
+      (when input
+        ;; Parse the input as a Lisp form
+        (let ((record (read-from-string input)))
+          ;; Insert the record
+          (squ:insert table record :pk pk))))))
+
+(defun insert/command ()
+  "Creates the insert command"
+  (clingon:make-command :name "insert"
+                        :description "Insert records from standard input into a table"
+                        :usage "DATABASE TABLE"
+                        :options (insert/options)
+                        :handler #'insert/handler
+                        :examples '(("Insert a record:" .
+                                   "echo '(:name \"test\")' | sql-utils insert data.db mytable"))))
+
 (defun top-level/sub-commands ()
   "Returns sub-commands for the top-level command"
-  (list (tables/command) (rows/command)))
+  (list (tables/command) (rows/command) (insert/command)))
 
 (defun top-level/handler (cmd)
   "Handler for the top-level command"
