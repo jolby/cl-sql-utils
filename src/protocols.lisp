@@ -121,7 +121,7 @@
 (defgeneric fk-names (queryable)
   (:documentation "Returns a list of foreign key names"))
 
-(defgeneric use-rowid (queryable)
+(defgeneric uses-rowid-p (queryable)
   (:documentation "Returns T if this table uses rowid as its primary key"))
 
 (defgeneric lookup (table pk-values))

@@ -51,7 +51,7 @@
            :pk-names
            :fks
            :fk-names
-           :use-rowid
+           :uses-rowid-p
            :insert
            :insert-all
            :add-column

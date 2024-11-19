@@ -144,16 +144,35 @@
     ;; Read from stdin
     (let ((input (read-line *standard-input* nil nil)))
       (when input
-        ;; Parse the input as a Lisp form
-        (let ((records (read-from-string input)))
-          ;; Handle both single record and list of records
-          (if (and (listp records) 
-                   (every #'listp records)
-                   (not (keywordp (first records))))
-              ;; Insert multiple records
-              (squ:insert-all table records :pk pk)
-              ;; Insert single record
-              (squ:insert table records :pk pk)))))))
+        ;; Try parsing as JSON first
+        (handler-case
+            (let ((json-data (yason:parse input)))
+              ;; Convert JSON to plist(s)
+              (let ((records 
+                     (if (hash-table-p json-data)
+                         ;; Single object - convert to plist
+                         (alexandria:hash-table-plist json-data)
+                         ;; Array of objects - convert each to plist
+                         (mapcar #'alexandria:hash-table-plist json-data))))
+                ;; Handle both single record and list of records
+                (if (and (listp records)
+                         (every #'listp records)
+                         (not (keywordp (first records))))
+                    ;; Insert multiple records
+                    (squ:insert-all table records :pk pk)
+                    ;; Insert single record  
+                    (squ:insert table records :pk pk))))
+          ;; If JSON parsing fails, try as Lisp form
+          (error ()
+            (let ((records (read-from-string input)))
+              ;; Handle both single record and list of records
+              (if (and (listp records)
+                       (every #'listp records)
+                       (not (keywordp (first records))))
+                  ;; Insert multiple records
+                  (squ:insert-all table records :pk pk)
+                  ;; Insert single record
+                  (squ:insert table records :pk pk)))))))))
 
 (defun insert/command ()
   "Creates the insert command"

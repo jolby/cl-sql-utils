@@ -50,7 +50,7 @@
   :version "0.1.0"
   :license "MIT"
   :description "Sqlite3 CLI utility binary in Common Lisp. Implementation of sql-utils protocols for sqlite3 databases."
-  :depends-on (:alexandria :str :clingon
+  :depends-on (:alexandria :str :clingon :yason
                            :cl-dbi :sql-utils :sql-utils/sqlite-utils)
   :serial t
   :components ((:module "src/cli/"

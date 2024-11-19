@@ -1,6 +1,6 @@
 (in-package :sql-utils)
 
-(defmethod use-rowid ((table table))
+(defmethod uses-rowid-p ((table table))
   "Returns T if this table uses rowid as its primary key (no other primary keys specified)"
   (not (some #'is-pk (columns table))))
 
