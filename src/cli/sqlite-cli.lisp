@@ -131,6 +131,7 @@
                          :description "Column(s) to use as primary key"
                          :long-name "pk"
                          :key :pk)))
+
 (defun %maybe-convert-to-keyword (js-name)
            (or (find-symbol (string-upcase js-name) :keyword)
                js-name))
@@ -201,9 +202,125 @@
                         :examples '(("Insert a record:" .
                                    "echo '(:name \"test\")' | sql-utils insert data.db mytable"))))
 
+(defun create-database/options ()
+  "Returns options for the create-database command"
+  (list
+    (clingon:make-option :flag
+                         :description "Enable WAL mode on the created database"
+                         :long-name "enable-wal"
+                         :key :enable-wal)))
+
+(defun create-database/handler (cmd)
+  "Handler for the create-database command"
+  (let* ((args (clingon:command-arguments cmd))
+         (path (first args))
+         (enable-wal (clingon:getopt cmd :enable-wal))
+         (db (squ:make-db-connection :sqlite :filename path)))
+    (when enable-wal
+      (squ:execute db "PRAGMA journal_mode=WAL"))
+    (squ:execute db "VACUUM")))
+
+(defun create-database/command ()
+  "Creates the create-database command"
+  (clingon:make-command :name "create-database"
+                        :description "Create a new empty database file"
+                        :usage "DATABASE"
+                        :options (create-database/options)
+                        :handler #'create-database/handler
+                        :examples '(("Create new database:" .
+                                   "sql-utils create-database data.db"))))
+
+(defun create-table/options ()
+  "Returns options for the create-table command"
+  (list
+    (clingon:make-option :list
+                         :description "Column(s) to use as primary key"
+                         :long-name "pk"
+                         :key :pk)
+    (clingon:make-option :list
+                         :description "Columns that should be created as NOT NULL"
+                         :long-name "not-null"
+                         :key :not-null)
+    (clingon:make-option :list
+                         :description "Default value that should be set for a column"
+                         :long-name "default"
+                         :key :defaults)
+    (clingon:make-option :list
+                         :description "Column, other table, other column to set as a foreign key"
+                         :long-name "fk"
+                         :key :foreign-keys)
+    (clingon:make-option :flag
+                         :description "If table already exists, do nothing"
+                         :long-name "ignore"
+                         :key :ignore)
+    (clingon:make-option :flag
+                         :description "If table already exists, replace it"
+                         :long-name "replace"
+                         :key :replace)
+    (clingon:make-option :flag
+                         :description "If table already exists, try to transform the schema"
+                         :long-name "transform"
+                         :key :transform)
+    (clingon:make-option :flag
+                         :description "Apply STRICT mode to created table"
+                         :long-name "strict"
+                         :key :strict)))
+
+(defun create-table/handler (cmd)
+  "Handler for the create-table command"
+  (let* ((args (clingon:command-arguments cmd))
+         (path (first args))
+         (table-name (second args))
+         (column-defs (cddr args))
+         (db (squ:make-db-connection :sqlite :filename path)))
+    
+    ;; Validate we have an even number of column name/type pairs
+    (when (oddp (length column-defs))
+      (error "Columns must be specified as name type pairs"))
+    
+    ;; Convert column definitions to alist
+    (let* ((columns (loop for (name type) on column-defs by #'cddr
+                         collect (cons name (string-upcase type))))
+           ;; Get options
+           (pk (clingon:getopt cmd :pk))
+           (not-null (clingon:getopt cmd :not-null))
+           (defaults (clingon:getopt cmd :defaults))
+           (foreign-keys (clingon:getopt cmd :foreign-keys))
+           (ignore (clingon:getopt cmd :ignore))
+           (replace (clingon:getopt cmd :replace))
+           (transform (clingon:getopt cmd :transform))
+           (strict (clingon:getopt cmd :strict)))
+
+      ;; Validate column types
+      (dolist (col columns)
+        (unless (member (cdr col) '("INTEGER" "TEXT" "FLOAT" "BLOB") :test #'string=)
+          (error "Column types must be one of: INTEGER, TEXT, FLOAT, BLOB")))
+
+      ;; Create the table
+      (squ:create-table db table-name columns
+                        :pk pk
+                        :not-null not-null
+                        :defaults defaults
+                        :foreign-keys foreign-keys
+                        :if-not-exists ignore
+                        :replace replace
+                        :transform transform
+                        :strict strict))))
+
+(defun create-table/command ()
+  "Creates the create-table command"
+  (clingon:make-command :name "create-table"
+                        :description "Add a table with the specified columns"
+                        :usage "DATABASE TABLE [column type]..."
+                        :options (create-table/options)
+                        :handler #'create-table/handler
+                        :examples '(("Create table:" .
+                                   "sql-utils create-table data.db people id integer name text --pk id"))))
+
 (defun top-level/sub-commands ()
   "Returns sub-commands for the top-level command"
-  (list (tables/command) (rows/command) (insert/command)))
+  (list (tables/command) (rows/command) (insert/command)
+        (create-database/command) (create-table/command)))
 
 (defun top-level/handler (cmd)
   "Handler for the top-level command"
