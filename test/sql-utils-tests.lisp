@@ -355,7 +355,7 @@
                                    '(("id" . "INTEGER") ("name" . "TEXT"))
                                    :pk "id")))
       (is (equal '("id") (sql-utils:pks table)))
-      (is-false (sql-utils:use-rowid table)))
+      (is-false (sql-utils:uses-rowid-p table)))
     ;; Test table with compound primary key
     (let ((table
            (sql-utils:create-table conn "test_compound_pk"
@@ -363,16 +363,15 @@
                                      ("name" . "TEXT"))
                                    :pk '("year" "month"))))
       (is (equal '("year" "month") (sql-utils:pks table)))
-      (is-false (sql-utils:use-rowid table)))
+      (is-false (sql-utils:uses-rowid-p table)))
     ;; Test table with no explicit primary key (should use rowid)
     (let ((table
            (sql-utils:create-table conn "test_no_pk"
                                    '(("name" . "TEXT") ("age" . "INTEGER")))))
       (is (equal '("rowid") (sql-utils:pks table)))
-      (is-true (sql-utils:use-rowid table)))))
+      (is-true (sql-utils:uses-rowid-p table)))))
 
 ;; Test insert and insert-all methods
-
 (test insert-basics
   (with-test-connection (conn)
     (let ((table
@@ -429,6 +428,117 @@
       ;; Test value-or-default for non-existing record
       (is
        (equal :not-found (sql-utils:value-or-default table 999 :not-found))))))
+
+(test delete-record-basics
+  (with-test-connection (conn)
+    (let ((table (sql-utils:create-table conn "test_delete"
+                                        '(("id" . "INTEGER")
+                                          ("name" . "TEXT"))
+                                        :pk "id")))
+      ;; Insert test data
+      (sql-utils:insert table '(:id 1 :name "Alice"))
+      (sql-utils:insert table '(:id 2 :name "Bob"))
+
+      ;; Test deleting existing record
+      (is (= 2 (sql-utils:row-count table)))
+      (sql-utils:delete-record table 1)
+      (is (= 1 (sql-utils:row-count table)))
+      (let ((remaining (first (sql-utils:rows table))))
+        (is (= 2 (getf remaining :|id|)))
+        (is (string= "Bob" (getf remaining :|name|))))
+
+      ;; Test error on non-existent record
+      (signals sql-utils:not-found-error
+        (sql-utils:delete-record table 999))
+
+      ;; Test compound primary key
+      (let ((table2 (sql-utils:create-table conn "test_delete_compound"
+                                           '(("year" . "INTEGER")
+                                             ("month" . "INTEGER")
+                                             ("data" . "TEXT"))
+                                           :pk '("year" "month"))))
+        (sql-utils:insert table2 '(:year 2024 :month 1 :data "Jan"))
+        (sql-utils:insert table2 '(:year 2024 :month 2 :data "Feb"))
+
+        (is (= 2 (sql-utils:row-count table2)))
+        (sql-utils:delete-record table2 '(2024 1))
+        (is (= 1 (sql-utils:row-count table2)))
+        (let ((remaining (first (sql-utils:rows table2))))
+          (is (= 2024 (getf remaining :|year|)))
+          (is (= 2 (getf remaining :|month|))))))))
+
+(test delete-where-basics
+  (with-test-connection (conn)
+    (let ((table (sql-utils:create-table conn "test_delete_where"
+                                        '(("id" . "INTEGER")
+                                          ("name" . "TEXT")
+                                          ("age" . "INTEGER"))
+                                        :pk "id")))
+      ;; Insert test data
+      (sql-utils:insert-all table
+                           (list '(:id 1 :name "Alice" :age 25)
+                                 '(:id 2 :name "Bob" :age 30)
+                                 '(:id 3 :name "Charlie" :age 35)
+                                 '(:id 4 :name "David" :age 40)))
+
+      ;; Test basic where clause
+      (is (= 4 (sql-utils:row-count table)))
+      (sql-utils:delete-where table :where "age > ?" :where-args '(35))
+      (is (= 3 (sql-utils:row-count table)))
+
+      ;; Test multiple conditions
+      (sql-utils:delete-where table
+                             :where "age >= ? AND name LIKE ?"
+                             :where-args '(30 "B%"))
+      (is (= 2 (sql-utils:row-count table)))
+
+      ;; Test delete all
+      (sql-utils:delete-where table)
+      (is (= 0 (sql-utils:row-count table)))
+
+      ;; Test with analyze flag
+      (sql-utils:insert table '(:id 1 :name "Test" :age 25))
+      (sql-utils:delete-where table :analyze t)
+      (is (= 0 (sql-utils:row-count table))))))
+
+(test update-basics
+  (with-test-connection (conn)
+    (let ((table (sql-utils:create-table conn "test_update"
+                                        '(("id" . "INTEGER")
+                                          ("name" . "TEXT")
+                                          ("age" . "INTEGER"))
+                                        :pk "id")))
+      ;; Insert test data
+      (sql-utils:insert table '(:id 1 :name "Alice" :age 25))
+
+      ;; Test basic update
+      (sql-utils:update table 1 :updates '(:name "Alicia" :age 26))
+      (let ((row (sql-utils:lookup table 1)))
+        (is (string= "Alicia" (getf row :|name|)))
+        (is (= 26 (getf row :|age|))))
+
+      ;; Test error on non-existent record
+      (signals sql-utils:not-found-error
+        (sql-utils:update table 999 :updates '(:name "Nobody")))
+
+      ;; Test with conversions
+      (sql-utils:update table 1
+                        :updates '(:name "alice")
+                        :conversions '(:name "upper(?)")
+                        :alter t)
+      (let ((row (sql-utils:lookup table 1)))
+        (is (string= "ALICE" (getf row :|name|))))
+
+      ;; Test compound primary key
+      (let ((table2 (sql-utils:create-table conn "test_update_compound"
+                                           '(("year" . "INTEGER")
+                                             ("month" . "INTEGER")
+                                             ("data" . "TEXT"))
+                                           :pk '("year" "month"))))
+        (sql-utils:insert table2 '(:year 2024 :month 1 :data "January"))
+        (sql-utils:update table2 '(2024 1) :updates '(:data "Jan"))
+        (let ((row (sql-utils:lookup table2 '(2024 1))))
+          (is (string= "Jan" (getf row :|data|))))))))
 
 (test transform-basics
   (with-test-connection (conn)
@@ -696,6 +806,7 @@
 ;; (run! 'sql-utils-test.sql-utils-tests::insert-basics)
 ;; (run! 'sql-utils-test.sql-utils-tests::insert-all-basics)
 ;; (run! 'sql-utils-test.sql-utils-tests::lookup-basics)
+;; (run! 'sql-utils-test.sql-utils-tests::update-basics)
 ;; (run! 'sql-utils-test.sql-utils-tests::add-foreign-key-basics)
 ;; (run! 'sql-utils-test.sql-utils-tests::add-column-basics)
 ;; (run! 'sql-utils-test.sql-utils-tests::transform-basics)

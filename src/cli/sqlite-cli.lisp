@@ -3,23 +3,23 @@
 (defun tables/options ()
   "Returns options for the tables command"
   (list
-    (clingon:make-option :switch
+    (clingon:make-option :flag
                          :description "Just show FTS4 enabled tables"
                          :long-name "fts4"
                          :key :fts4)
-    (clingon:make-option :switch
+    (clingon:make-option :flag
                          :description "Just show FTS5 enabled tables"
                          :long-name "fts5"
                          :key :fts5)
-    (clingon:make-option :switch
+    (clingon:make-option :flag
                          :description "Include row counts per table"
                          :long-name "counts"
                          :key :counts)
-    (clingon:make-option :switch
+    (clingon:make-option :flag
                          :description "Include list of columns for each table"
                          :long-name "columns"
                          :key :columns)
-    (clingon:make-option :switch
+    (clingon:make-option :flag
                          :description "Include schema for each table"
                          :long-name "schema"
                          :key :schema)))
@@ -32,19 +32,19 @@
          (fts4 (clingon:getopt cmd :fts4))
          (fts5 (clingon:getopt cmd :fts5))
          (counts (clingon:getopt cmd :counts))
-         (squ:columns (clingon:getopt cmd :columns))
-         (squ:schema (clingon:getopt cmd :schema)))
+         (columns (clingon:getopt cmd :columns))
+         (schema (clingon:getopt cmd :schema)))
     ;; Get list of tables
     (let ((tables (squ:table-names db :fts4 fts4 :fts5 fts5)))
       (dolist (table tables)
         (format t "~A" table)
         (when counts
           (format t " (~A rows)" (squ:row-count (squ:make-table db table))))
-        (when squ:columns
+        (when columns
           (let ((cols
                  (mapcar #'squ:name (squ:columns (squ:make-table db table)))))
             (format t "~%  Columns: ~{~A~^, ~}" cols)))
-        (when squ:schema
+        (when schema
           (format t "~%  Schema: ~A" (squ:schema (squ:make-table db table))))
         (format t "~%")))))
 
@@ -131,48 +131,65 @@
                          :description "Column(s) to use as primary key"
                          :long-name "pk"
                          :key :pk)))
+(defun %maybe-convert-to-keyword (js-name)
+           (or (find-symbol (string-upcase js-name) :keyword)
+               js-name))
 
 (defun insert/handler (cmd)
   "Handler for the insert command"
   (let* ((args (clingon:command-arguments cmd))
          (path (first args))
          (table-name (second args))
+         (record-arg (third args))
          (db (squ:make-db-connection :sqlite :filename path))
          (table (squ:make-table db table-name))
          (pk (clingon:getopt cmd :pk))
-         (nl (clingon:getopt cmd :nl)))
-    ;; Read from stdin
-    (let ((input (read-line *standard-input* nil nil)))
-      (when input
-        ;; Try parsing as JSON first
-        (handler-case
-            (let ((json-data (yason:parse input)))
-              ;; Convert JSON to plist(s)
-              (let ((records 
-                     (if (hash-table-p json-data)
-                         ;; Single object - convert to plist
-                         (alexandria:hash-table-plist json-data)
-                         ;; Array of objects - convert each to plist
-                         (mapcar #'alexandria:hash-table-plist json-data))))
-                ;; Handle both single record and list of records
-                (if (and (listp records)
-                         (every #'listp records)
-                         (not (keywordp (first records))))
-                    ;; Insert multiple records
-                    (squ:insert-all table records :pk pk)
-                    ;; Insert single record  
-                    (squ:insert table records :pk pk))))
-          ;; If JSON parsing fails, try as Lisp form
-          (error ()
-            (let ((records (read-from-string input)))
-              ;; Handle both single record and list of records
-              (if (and (listp records)
-                       (every #'listp records)
-                       (not (keywordp (first records))))
-                  ;; Insert multiple records
-                  (squ:insert-all table records :pk pk)
-                  ;; Insert single record
-                  (squ:insert table records :pk pk)))))))))
+         (nl (clingon:getopt cmd :nl))
+         records)
+    ;; (format t "~&INSERT ARGS: ~A~%" args)
+    ;; (format t "~&RECORD ARG: ~A~%" record-arg)
+    ;; First try parsing from command line argument
+    (when record-arg
+      (handler-case
+          (setf records
+                (let* ((yason:*parse-object-key-fn* #'%maybe-convert-to-keyword)
+                       (json-data (yason:parse record-arg)))
+                  ;; (format t "~&JSON DATA: ~A" json-data)
+                  (if (hash-table-p json-data)
+                      (alexandria:hash-table-plist json-data)
+                      (mapcar #'alexandria:hash-table-plist json-data))))
+        (error ()
+          (setf records (read-from-string record-arg)))))
+
+    ;; (format t "~&Records: ~A~%" records)
+    
+    ;; If no records yet, try reading from stdin
+    (when (and (not records) (not (eq *standard-input* *terminal-io*)))
+      (let ((input (read-line *standard-input* nil nil)))
+        (when input
+          (handler-case
+              (let ((json-data (yason:parse input)))
+                (setf records
+                      (if (hash-table-p json-data)
+                          (alexandria:hash-table-plist json-data)
+                          (mapcar #'alexandria:hash-table-plist json-data))))
+            (error ()
+              (setf records (read-from-string input)))))))
+    
+    ;; Error if we couldn't get any records
+    (unless records
+      (error "No valid records provided. Supply records as argument or via stdin."))
+    
+    (format t "~&DEBUG: Parsed records: ~A~%" records)
+    
+    ;; Handle both single record and list of records
+    (if (and (listp records)
+             (every #'listp records)
+             (not (keywordp (first records))))
+        ;; Insert multiple records
+        (squ:insert-all table records :pk pk)
+        ;; Insert single record
+        (squ:insert table records :pk pk))))
 
 (defun insert/command ()
   "Creates the insert command"
@@ -203,8 +220,14 @@
                         :handler #'top-level/handler
                         :options (top-level/options)
                         :sub-commands (top-level/sub-commands)))
+(defun run (&rest args)
+  "Main entry point for the CLI"
+  (let ((app (top-level/command)))
+    (clingon:run app args)))
+;; (sql-utils/sqlite-cli::run "tables" "examples/test.db" "--schema=1 --columns=1")
 
 (defun main ()
   "Main entry point for the CLI"
   (let ((app (top-level/command)))
-    (clingon:run app)))
+    (clingon:run app)
+    (clingon:exit)))

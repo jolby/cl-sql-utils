@@ -54,6 +54,9 @@
            :uses-rowid-p
            :insert
            :insert-all
+           :delete-record
+           :delete-where
+           :update
            :add-column
            :transform
            :foreign-keys

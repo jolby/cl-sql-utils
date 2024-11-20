@@ -105,7 +105,7 @@
       (format t "COLS: ~A ~%" (sql-utils:columns table))
       (format t "TABLE INFO: ~A ~%" (sql-utils::%table-info table))
       ;; (is (equal '("year" "month") (sql-utils:pks table)))
-      ;; (is-false (sql-utils:use-rowid table))
+      ;; (is-false (sql-utils:uses-rowid-p table))
       ))
 ;; (sql-utils::%table-info *last-table*)
 

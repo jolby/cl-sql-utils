@@ -128,6 +128,17 @@
 
 (defgeneric value-or-default (table key value))
 
+(defgeneric delete-record (table pk-values)
+  (:documentation "Delete row matching the specified primary key"))
+
+(defgeneric delete-where (table &key where where-args analyze)
+  (:documentation
+   "Delete rows matching the where clause, or all rows if no where clause"))
+
+(defgeneric update (table pk-values &key updates alter conversions)
+  (:documentation
+   "Update a row identified by pk-values with the specified updates"))
+
 (defgeneric create (table columns &key pk foreign-keys column-order not-null
                           defaults hash-id hash-id-columns extracts
                           if-not-exists replace ignore transform strict))

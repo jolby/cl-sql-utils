@@ -123,7 +123,7 @@
    - Dropping foreign keys (:drop-foreign-keys '(column-names))
    - Adding foreign keys (:add-foreign-keys '((column other-table other-column)))
    - Setting all foreign keys (:foreign-keys '((column other-table other-column)))"
-  (format t "~&TRANSFORM: ~A ~%" table)
+  ;; (format t "~&TRANSFORM: ~A ~%" table)
   ;; Validate foreign key parameters
   (when foreign-keys
     (when (or add-foreign-keys drop-foreign-keys)
@@ -199,7 +199,7 @@
    fk: Name of table this column should foreign key to
    fk-col: Column in foreign key table to reference (defaults to id)
    not-null-default: Set column as NOT NULL with this default value"
-  (format t "~&add-column: ~A ~%" col-name)
+  ;; (format t "~&add-column: ~A ~%" col-name)
   (when fk
     ;; Validate foreign key table exists
     (unless (member fk (table-names (db table)) :test #'string=)
@@ -233,6 +233,88 @@
         (sync-from-db table))))
   table)
 
+(defmethod delete-record ((table table) pk-values)
+  "Delete row matching the specified primary key.
+   pk-values: A single value, or a list of values for tables with compound primary key"
+  (unless (listp pk-values)
+    (setf pk-values (list pk-values)))
+  ;; Verify the record exists first
+  (lookup table pk-values)
+  (let* ((wheres (mapcar (lambda (pk) (format nil "[~A] = ?" pk)) (pks table)))
+         (sql
+          (format nil "DELETE FROM [~A] WHERE ~A" (name table)
+                  (str:join " AND " wheres))))
+    (dbi:with-transaction (connection (db table))
+      (execute (db table) sql pk-values)))
+  table)
+
+(defmethod delete-where ((table table) &key where where-args analyze)
+  "Delete rows matching the where clause, or all rows if no where clause specified.
+   where: SQL where clause fragment (e.g. \"id > ?\")
+   where-args: Parameters for the where clause
+   analyze: If true, run ANALYZE after deleting"
+  (unless (exists-p table)
+    (return-from delete-where table))
+  (let ((sql (format nil "DELETE FROM [~A]~@[ WHERE ~A~]" (name table) where)))
+    (execute (db table) sql where-args)
+    (when analyze
+      (analyze (db table))))
+  table)
+
+(defmethod update ((table table) pk-values &key updates alter conversions)
+  "Update a row identified by pk-values with the specified updates.
+   pk-values: Primary key value(s) identifying the row
+   updates: Property list of column names and new values
+   alter: If true, add any missing columns
+   conversions: Property list of column names and SQL functions to apply"
+  (unless (listp pk-values)
+    (setf pk-values (list pk-values)))
+  ;; Verify record exists
+  (lookup table pk-values)
+  (when updates
+    (let (sets args)
+      ;; Build SET clause and args
+      (loop for (key value) on updates by #'cddr
+            do (let ((col-name (string-trim ":" (string key))))
+                 (push
+                  (format nil "[~A] = ~A" col-name
+                          (or (getf conversions key) "?"))
+                  sets)
+                 (push value args)))
+      ;; Add WHERE clause conditions
+      (let* ((wheres
+              (mapcar (lambda (pk) (format nil "[~A] = ?" pk)) (pks table)))
+             (sql
+              (format nil "UPDATE [~A] SET ~A WHERE ~A" (name table)
+                      (str:join ", " (nreverse sets))
+                      (str:join " AND " wheres))))
+        ;; Execute update
+        (handler-case
+            (dbi:with-transaction (connection (db table))
+              (let* ((update-result
+                      (execute (db table) sql
+                               (append (nreverse args) pk-values)))
+                     ;; (row-count (dbi:row-count update-result))
+                     (row-count (dbi:row-count (connection (db table))))
+                     ;; (first-row (dbi:fetch update-result))
+                     ;; (rowcount (getf first-row :|rows_affected|))
+                     )
+                (format t "~&Update result: ~A, row-count: ~A~%" update-result
+                        row-count)
+                (assert (= row-count 1))))
+          ;; Handle missing column error
+          (dbi:dbi-error (e)
+            (when (and alter (search "no such column" (princ-to-string e)))
+              ;; Add missing columns and retry
+              (add-missing-columns table (list updates))
+              (update table pk-values :updates updates)))))))
+  ;; Store last updated pk
+  (setf (last-pk table)
+          (if (= (length (pks table)) 1)
+              (first pk-values)
+              pk-values))
+  table)
+
 (defmethod drop ((table table) &key ignore)
   "Drop this table.
    ignore: Set to T to ignore the error if the table does not exist"
@@ -248,11 +330,6 @@
   )
 
 (defmethod detect-fts ((table table))
-  ;; Implementation needed
-  )
-
-(defmethod update ((table table) pk-values &key updates alter conversions)
-  (declare (ignore pk-values updates alter conversions))
   ;; Implementation needed
   )
 
@@ -315,8 +392,10 @@
                    (let ((values
                           (mapcar
                             (lambda (col)
-                              ;; (getf record (intern (string-upcase col))))
-                              (getf record col))
+                              (let ((val (getf record col)))
+                                ;; (getf record (intern (string-upcase col))))
+                                ;; (format t "~&GETF: ~A, FROM: ~A. Result: ~A~%" col record val)
+                                val))
                             all-columns)))
                      ;; (format t "VALS: ~A ~%" values)
                      (dbi:execute stmt values))))))))
@@ -346,8 +425,8 @@ column: The column to mark as a foreign key
 other-table: The table it refers to (required)
 other-column: The column on the other table (defaults to primary key of other-table)
 ignore: Set to T to ignore if foreign key already exists"
-  (format t "~&add-foreign-key: COL: ~A OTHER-TABLE: ~A, OTHER-COL: ~A~%"
-          column other-table other-column)
+  ;; (format t "~&add-foreign-key: COL: ~A OTHER-TABLE: ~A, OTHER-COL: ~A~%"
+  ;; column other-table other-column)
   ;; If other-table not specified, it's an error
   (unless (and other-table (exists-p (make-table (db table) other-table)))
     (error 'missing-db-type-error

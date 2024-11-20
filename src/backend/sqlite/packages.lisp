@@ -17,11 +17,10 @@
                 :name
                 ;; Table Accessors
                 :columns
-                :column-names
-                :foreign-keys
                 :pks
+                :foreign-keys
+                :column-names
                 :pk-names
-                :fks
                 :fk-names
                 ;; Functions
                 :make-db-connection
@@ -40,4 +39,5 @@
                 :sync-from-db
                 :exists-p
                 :create
-                :drop))
+                :drop
+                :schema))

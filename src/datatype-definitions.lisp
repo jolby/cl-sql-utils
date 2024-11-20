@@ -59,9 +59,17 @@
 ;; Main Database class
 
 (defclass database ()
-  ((connection :initarg :connection :accessor connection)
-   (tracer :initform nil :accessor tracer)
-   (use-counts-table :initform nil :accessor use-counts-table)))
+  ((connection :initarg :connection
+               :accessor connection
+               :documentation "The underlying DBI database connection")
+   (tracer :initform nil
+           :accessor tracer
+           :documentation "Optional function for tracing SQL execution")
+   (use-counts-table :initform nil
+                     :accessor use-counts-table
+                     :documentation "Whether to use a _counts table for row counts"))
+  (:documentation "Main database connection class that wraps a DBI connection.
+Provides high-level methods for working with SQLite databases."))
 
 (defmethod print-object ((obj database) stream)
   (print-unreadable-object (obj stream :type t)
@@ -79,16 +87,43 @@
 ;; Table class
 
 (defclass table (queryable)
-  ((pk :initarg :pk :accessor pk)
-   (foreign-keys :initarg :foreign-keys :accessor foreign-keys)
-   (columns :initarg :columns :accessor columns)
-   (column-order :initarg :column-order :accessor column-order)
-   (not-null :initarg :not-null :accessor not-null)
-   (defaults :initarg :defaults :accessor defaults)
-   (batch-size :initarg :batch-size :initform 100 :accessor batch-size)
-   (hash-id :initarg :hash-id :accessor hash-id)
-   (hash-id-columns :initarg :hash-id-columns :accessor hash-id-columns)
-   (strict :initarg :strict :accessor strict)))
+  ((pk :initarg :pk
+       :accessor pk
+       :documentation "Primary key column name(s) - can be a single name or list for compound keys")
+   (foreign-keys :initarg :foreign-keys
+                 :accessor foreign-keys
+                 :documentation "List of foreign key constraint definitions")
+   (columns :initarg :columns
+            :accessor columns
+            :documentation "List of column objects defining the table schema")
+   (column-order :initarg :column-order
+                 :accessor column-order
+                 :documentation "Optional ordered list of column names")
+   (not-null :initarg :not-null
+             :accessor not-null
+             :documentation "List of column names that cannot be NULL")
+   (defaults :initarg :defaults
+             :accessor defaults
+             :documentation "Map of column names to their default values")
+   (batch-size :initarg :batch-size
+               :initform 100
+               :accessor batch-size
+               :documentation "Number of rows to insert in each batch operation")
+   (hash-id :initarg :hash-id
+            :accessor hash-id
+            :documentation "If true, use a hash of row values as the primary key")
+   (hash-id-columns :initarg :hash-id-columns
+                    :accessor hash-id-columns
+                    :documentation "List of columns to use for hash-id generation")
+   (strict :initarg :strict
+           :accessor strict
+           :documentation "If true, apply STRICT mode constraints to the table")
+   (last-pk :initarg :last-pk
+            :accessor last-pk
+            :documentation "The last primary key value inserted or updated in the table"))
+  (:documentation "Represents a SQLite table and its schema.
+Provides methods for querying and modifying both the table's structure and its data.
+Tables should usually be created via db.table() rather than directly instantiated."))
 
 (defmethod print-object ((obj table) stream)
   (print-unreadable-object (obj stream :type t)
