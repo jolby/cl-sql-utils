@@ -15,6 +15,15 @@
   ;; nothing yet...
   )
 
+(defmethod default-values ((table table))
+  "Returns a map of column names to their default values"
+  (let ((defaults (make-hash-table :test 'equal)))
+    (dolist (col (columns table))
+      (when (default-value col)
+        (setf (gethash (name col) defaults)
+              (decode-default-value (default-value col)))))
+    defaults))
+
 (defmethod lookup ((table table) pk-values)
   "Return row (as property list) for the specified primary key.
    Raises 'not-found-error' if a matching row cannot be found.

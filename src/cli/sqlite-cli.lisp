@@ -244,6 +244,7 @@
     (clingon:make-option :list
                          :description "Default value that should be set for a column"
                          :long-name "default"
+                         ;; :separator #\=
                          :key :defaults)
     (clingon:make-option :list
                          :description "Column, other table, other column to set as a foreign key"
@@ -266,13 +267,18 @@
                          :long-name "strict"
                          :key :strict)))
 
+;;(defparameter *dbg-defaults* nil)
+;;(defparameter *dbg-notnull* nil)
+
 (defun create-table/handler (cmd)
   "Handler for the create-table command"
+  ;; (format t "~&CMD: ~A ~%" cmd)
   (let* ((args (clingon:command-arguments cmd))
          (path (first args))
          (table-name (second args))
          (column-defs (cddr args))
          (db (squ:make-db-connection :sqlite :filename path)))
+    ;; (format t "~&ARGS: ~A, TABLE: ~A, COLUMN DEFS: ~A~%" args table-name column-defs)
     
     ;; Validate we have an even number of column name/type pairs
     (when (oddp (length column-defs))
@@ -295,17 +301,25 @@
       (dolist (col columns)
         (unless (member (cdr col) '("INTEGER" "TEXT" "FLOAT" "BLOB") :test #'string=)
           (error "Column types must be one of: INTEGER, TEXT, FLOAT, BLOB")))
+      ;; Parse defaults from list of "key=value" strings into alist
+      ;; (format t "~&Unparsed defaults: ~A type: ~A~%" defaults (type-of defaults))
 
+      (let* ((parsed-defaults (list)))
+        (loop :for default-str :in defaults
+              :do (setf parsed-defaults
+                        (squ::parse-list-of-pairs-to-alist default-str :accumulator parsed-defaults)))
+        
+        ;; (format t "~&Parsed defaults: ~A~%" parsed-defaults)
       ;; Create the table
       (squ:create-table db table-name columns
                         :pk pk
                         :not-null not-null
-                        :defaults defaults
+                        :defaults parsed-defaults
                         :foreign-keys foreign-keys
                         :if-not-exists ignore
                         :replace replace
                         :transform transform
-                        :strict strict))))
+                        :strict strict)))))
 
 (defun create-table/command ()
   "Creates the create-table command"
@@ -317,10 +331,100 @@
                         :examples '(("Create table:" .
                                    "sql-utils create-table data.db people id integer name text --pk id"))))
 
+(defun drop/options ()
+  "Returns options for the drop command"
+  (list
+    (clingon:make-option :flag
+                         :description "If table does not exist, do nothing"
+                         :long-name "ignore"
+                         :key :ignore)))
+
+(defun drop/handler (cmd)
+  "Handler for the drop command"
+  (let* ((args (clingon:command-arguments cmd))
+         (path (first args))
+         (table-name (second args))
+         (ignore (clingon:getopt cmd :ignore))
+         (db (squ:make-db-connection :sqlite :filename path))
+         (table (squ:make-table db table-name)))
+    (squ:drop table :ignore ignore)))
+
+(defun drop/command ()
+  "Creates the drop command"
+  (clingon:make-command :name "drop"
+                        :description "Drop the specified table"
+                        :usage "DATABASE TABLE"
+                        :options (drop/options)
+                        :handler #'drop/handler
+                        :examples '(("Drop a table:" .
+                                   "sql-utils drop data.db mytable"))))
+
+(defun delete-record/options ()
+  "Returns options for the delete-record command"
+  (list))
+
+(defun delete-record/handler (cmd)
+  "Handler for the delete-record command"
+  (let* ((args (clingon:command-arguments cmd))
+         (path (first args))
+         (table-name (second args))
+         (pk-values (read-from-string (third args)))
+         (db (squ:make-db-connection :sqlite :filename path))
+         (table (squ:make-table db table-name)))
+    (squ:delete-record table pk-values)))
+
+(defun delete-record/command ()
+  "Creates the delete-record command"
+  (clingon:make-command :name "delete-record"
+                        :description "Delete row matching the specified primary key"
+                        :usage "DATABASE TABLE PK-VALUES"
+                        :options (delete-record/options)
+                        :handler #'delete-record/handler
+                        :examples '(("Delete a record:" .
+                                   "sql-utils delete-record data.db people 1")
+                                  ("Delete with compound key:" .
+                                   "sql-utils delete-record data.db dates \"'(2024 1)'\""))))
+
+(defun delete-where/options ()
+  "Returns options for the delete-where command"
+  (list
+    (clingon:make-option :string
+                         :description "WHERE clause for deletion"
+                         :long-name "where"
+                         :key :where)
+    (clingon:make-option :flag
+                         :description "Run ANALYZE after deletion"
+                         :long-name "analyze"
+                         :key :analyze)))
+
+(defun delete-where/handler (cmd)
+  "Handler for the delete-where command"
+  (let* ((args (clingon:command-arguments cmd))
+         (path (first args))
+         (table-name (second args))
+         (where (clingon:getopt cmd :where))
+         (analyze (clingon:getopt cmd :analyze))
+         (db (squ:make-db-connection :sqlite :filename path))
+         (table (squ:make-table db table-name)))
+    (squ:delete-where table :where where :analyze analyze)))
+
+(defun delete-where/command ()
+  "Creates the delete-where command"
+  (clingon:make-command :name "delete-where"
+                        :description "Delete rows matching WHERE clause, or all rows if no clause"
+                        :usage "DATABASE TABLE"
+                        :options (delete-where/options)
+                        :handler #'delete-where/handler
+                        :examples '(("Delete matching rows:" .
+                                   "sql-utils delete-where data.db people --where \"age > 50\"")
+                                  ("Delete all rows:" .
+                                   "sql-utils delete-where data.db people"))))
+
 (defun top-level/sub-commands ()
   "Returns sub-commands for the top-level command"
   (list (tables/command) (rows/command) (insert/command)
-        (create-database/command) (create-table/command)))
+        (create-database/command) (create-table/command)
+        (drop/command) (delete-record/command) (delete-where/command)))
 
 (defun top-level/handler (cmd)
   "Handler for the top-level command"

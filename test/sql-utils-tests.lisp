@@ -814,4 +814,4 @@
 ;; (run! 'sql-utils-test.sql-utils-tests::default-value-in-table)
 ;; (ql:quickload '(:sql-utils :sql-utils/sqlite-utils :sql-utils/tests))
 ;; (run! 'sql-utils-test.sql-utils-tests:sql-utils-suite)
-
+;; (sql-utils/sqlite-cli::run "create-table" "examples/test.db" "people" "id" "integer" "name" "text" "email" "text" "age" "integer" "--pk" "id" "--not-null" "name,email" "--default" "age=0,name=NONAME")

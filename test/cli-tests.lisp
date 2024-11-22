@@ -127,7 +127,7 @@
 
 ;; Predicates: is is-every is-false is-true signals finishes
 
-;; (ql:quickload '(:sql-utils :sql-utils/sqlite-utils :sql-utils/tests :sql-utils/cli-tests))
+;; (ql:quickload '(:parse-float :sql-utils :sql-utils/sqlite-utils :sql-utils/tests :sql-utils/cli-tests))
 ;; (run! 'sql-utils-test.cli-tests::cli-suite-exists)
 ;; (run! 'sql-utils-test.cli-tests::cli-help)
 ;; (run! 'sql-utils-test.cli-tests::cli-tables)
