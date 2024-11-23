@@ -34,22 +34,25 @@ Run the tests:
 sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 'sql-utils-test.sql-utils-tests::sql-utils-suite)" --eval "(quit)"
 #+end_src
 
-** Quick Start
+** API Quick Start
 
 #+begin_src lisp
-;; Create an in-memory database
-(defvar *db* (sql-utils:make-db-connection :sqlite :memory t))
+;; Create a new database file
+(defvar *db* (sql-utils:make-db-connection :sqlite :filename "examples/test.db"))
 
-;; Create a table
+;; Create a table with constraints
 (sql-utils:create-table *db* "people"
                        '(("id" . "INTEGER")
                          ("name" . "TEXT")
+                         ("email" . "TEXT")
                          ("age" . "INTEGER"))
-                       :pk "id")
+                       :pk "id"
+                       :not-null '("name" "email")
+                       :defaults '(("age" . "0")))
 
 ;; Insert some data
 (sql-utils:insert (sql-utils:make-table *db* "people")
-                 '(:name "Alice" :age 30))
+                 '(:name "Alice" :email "alice@example.com" :age 30))
 
 ;; Query the data
 (sql-utils:rows (sql-utils:make-table *db* "people"))
@@ -78,7 +81,7 @@ sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 's
 - =row-count= - Get total number of rows
 - =lookup= - Find a record by primary key
 
-** Examples
+** API Examples
 
 *** Creating Tables with Foreign Keys
 
@@ -110,9 +113,9 @@ sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 's
 ** CLI
 The project includes a command-line interface for interacting with SQLite databases.
 
-*** Building the CLI
+*** Building the CLI binary executable
 
-To build the CLI executable:
+To build the CLI binary executable:
 
 #+begin_src sh
 # From within the root project directory:
@@ -120,6 +123,100 @@ sbcl --load "sql-utils.asd" --eval "(ql:quickload '(:sql-utils :sql-utils/sqlite
 #+end_src
 
 This will create an executable at =bin/sql-utils=.
+
+
+*** Available Commands
+
+- =create-database= - Create a new SQLite database file
+  - =--enable-wal= - Enable Write-Ahead Logging mode
+
+- =create-table= - Create a new table with specified columns
+  - =--pk= - Specify primary key column(s)
+  - =--not-null= - Mark columns as NOT NULL
+  - =--default= - Set default values for columns
+  - =--fk= - Add foreign key constraints
+  - =--ignore= - Skip if table exists
+  - =--replace= - Replace existing table
+  - =--strict= - Apply STRICT mode
+
+- =tables= - List tables in the database
+  - =--fts4= - Show only FTS4 enabled tables
+  - =--fts5= - Show only FTS5 enabled tables  
+  - =--counts= - Include row counts
+  - =--columns= - Show column information
+  - =--schema= - Show table schemas
+
+- =rows= - Output rows from a table
+  - =-c/--column= - Select specific columns
+  - =--where= - Filter rows with WHERE clause
+  - =-o/--order= - Order results
+  - =--limit= - Limit number of rows
+  - =--offset= - Skip initial rows
+
+- =insert= - Insert records into a table
+  - =--pk= - Specify column(s) to use as primary key
+  - =--nl= - Read newline-delimited JSON
+
+*** Command Examples
+
+Create a new database:
+#+begin_src sh
+$ bin/sql-utils create-database examples/test.db --enable-wal
+#+end_src
+
+Create a table with constraints:
+#+begin_src sh :results replace
+bin/sql-utils create-table examples/test.db people \
+  id integer \
+  name text \
+  email text \
+  age integer \
+  --pk id \
+  --not-null name \
+  --not-null email \
+  --default age 0
+#+end_src
+
+#+RESULTS:
+
+Insert records:
+#+begin_src sh
+# Insert a single record
+$ echo '(:name "Alice" :email "alice@example.com" :age 30)' | \
+  bin/sql-utils insert examples/examples/test.db people -
+
+$ echo '(:name "FOO")' | bin/sql-utils insert examples/test.db chickens -
+
+# Insert multiple records
+$ echo '((:name "Bob" :email "bob@example.com" :age 25)
+       (:name "Carol" :email "carol@example.com" :age 35))' | \
+  bin/sql-utils insert examples/examples/test.db people -
+$ echo '((:id 82 :name "BAZ" :parent_id 44) (:id 67 :name "BUB" :parent_id 44))' | bin/sql-utils insert examples/test.db chickens -
+
+# Insert with primary key
+$ echo '(:id 1 :name "BAR")' | bin/sql-utils insert examples/test.db chickens --pk id -
+#+end_src
+
+Query data:
+#+begin_src sh
+# List all tables
+$ bin/sql-utils tables examples/test.db --schema
+
+$ bin/sql-utils tables examples/test.db
+test_table
+test_table_2
+test_table_3
+
+# Show table contents
+$ bin/sql-utils rows examples/test.db people
+
+
+# Filter and order results
+$ bin/sql-utils rows examples/test.db people \
+  --where "age > 25" \
+  --order "name DESC" \
+  --limit 10
+#+end_src
 
 *** Usage Examples
 
@@ -152,26 +249,6 @@ $ echo '((:id 82 :name "BAZ" :parent_id 44) (:id 67 :name "BUB" :parent_id 44))'
 # Insert with primary key
 $ echo '(:id 1 :name "BAR")' | bin/sql-utils insert test.db chickens --pk id -
 #+end_src
-
-*** Available Commands
-
-- =tables= - List tables in the database
-  - =--fts4= - Show only FTS4 enabled tables
-  - =--fts5= - Show only FTS5 enabled tables  
-  - =--counts= - Include row counts
-  - =--columns= - Show column information
-  - =--schema= - Show table schemas
-
-- =rows= - Output rows from a table
-  - =-c/--column= - Select specific columns
-  - =--where= - Filter rows with WHERE clause
-  - =-o/--order= - Order results
-  - =--limit= - Limit number of rows
-  - =--offset= - Skip initial rows
-
-- =insert= - Insert records into a table
-  - =--pk= - Specify column(s) to use as primary key
-  - =--nl= - Read newline-delimited JSON (not yet implemented)
 
 ** Contributing
 
