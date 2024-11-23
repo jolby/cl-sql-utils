@@ -18,7 +18,7 @@ idioms.
 - Row insertion and querying
 - (PLANNED) Index management
 - (PLANNED) Transaction support
-- (PLANNED) robust CLI interface
+- (IN PROGRESS) robust CLI interface
 
 ** Installation
 
@@ -65,21 +65,25 @@ sbcl --eval "(ql:quickload '(:sql-utils :sql-utils/tests))" --eval "(5am:run! 's
 - =make-db-connection= - Create a new database connection
 - =create-table= - Create a new table
 - =execute= - Execute raw SQL
-- =rows= - Query rows from a table
 
 *** Table Operations
 
-- =insert= - Insert a single record
-- =insert-all= - Insert multiple records
 - =transform= - Modify table schema
 - =add-column= - Add a new column
 - =add-foreign-key= - Add a foreign key constraint
+- =drop= - Drop/delete a table
 
 *** Query Operations
 
-- =rows-where= - Query rows with conditions
-- =row-count= - Get total number of rows
 - =lookup= - Find a record by primary key
+- =row-count= - Get total number of rows
+- =row-count-where= - Get total number of rows matching a condition
+- =rows= - Query rows from a table
+- =rows-where= - Query rows with conditions
+- =insert= - Insert a single record
+- =insert-all= - Insert multiple records
+- =delete-record= - Delete a single record
+- =delete-where= - Delete records matching a condition
 
 ** API Examples
 
@@ -139,12 +143,6 @@ This will create an executable at =bin/sql-utils=.
   - =--replace= - Replace existing table
   - =--strict= - Apply STRICT mode
 
-- =delete-record= - Delete a single row by primary key value(s)
-
-- =delete-where= - Delete rows matching a WHERE clause
-  - =--where= - WHERE clause for deletion
-  - =--analyze= - Run ANALYZE after deletion
-
 - =drop= - Drop/delete a table
   - =--ignore= - Skip if table doesn't exist
 
@@ -166,6 +164,13 @@ This will create an executable at =bin/sql-utils=.
   - =--pk= - Specify column(s) to use as primary key
   - =--nl= - Read newline-delimited JSON
 
+- =delete-record= - Delete a single row by primary key value(s)
+
+- =delete-where= - Delete rows matching a WHERE clause
+  - =--where= - WHERE clause for deletion
+  - =--analyze= - Run ANALYZE after deletion
+
+
 *** Command Examples
 
 Create a new database:
@@ -183,80 +188,69 @@ bin/sql-utils create-table examples/test.db people \
   --pk id \
   --not-null name \
   --not-null email \
-  --default age 0
+  --default "age=0"
 #+end_src
-
-#+RESULTS:
 
 Insert records:
 #+begin_src sh
 # Insert a single record
 $ echo '(:name "Alice" :email "alice@example.com" :age 30)' | \
-  bin/sql-utils insert examples/examples/test.db people -
+  bin/sql-utils insert examples/test.db people
 
 $ echo '(:name "FOO")' | bin/sql-utils insert examples/test.db chickens -
 
-# Insert multiple records
-$ echo '((:name "Bob" :email "bob@example.com" :age 25)
-       (:name "Carol" :email "carol@example.com" :age 35))' | \
-  bin/sql-utils insert examples/examples/test.db people -
+# Insert multiple records (list of plists)
+$ echo '((:name "Bob" :email "bob@example.com" :age 25)(:name "Carol" :email "carol@example.com" :age 35))' | bin/sql-utils insert examples/test.db people
 $ echo '((:id 82 :name "BAZ" :parent_id 44) (:id 67 :name "BUB" :parent_id 44))' | bin/sql-utils insert examples/test.db chickens -
 
 # Insert with primary key
 $ echo '(:id 1 :name "BAR")' | bin/sql-utils insert examples/test.db chickens --pk id -
 #+end_src
 
-Query data:
+Query table information:
 #+begin_src sh
-# List all tables
-$ bin/sql-utils tables examples/test.db --schema
-
 $ bin/sql-utils tables examples/test.db
 test_table
 test_table_2
 test_table_3
 
+# List all tables showing schema
+$ bin/sql-utils tables examples/test.db --schema
+test_table
+  Schema: CREATE TABLE "test_table" (
+   [id] INTEGER,
+   [name] TEXT DEFAULT 'FOO',
+   [parent_id] INTEGER REFERENCES [test_table]([id])
+)
+test_table_2
+  Schema: CREATE TABLE [test_table_2] (
+   [id] INTEGER,
+   [test_text] TEXT,
+   [blah] TEXT
+)
+test_table_3
+  Schema: CREATE TABLE [test_table_3] (
+   [id] INTEGER,
+   [test_text] TEXT,
+   [created_at] TEXT DEFAULT CURRENT_TIMESTAMP
+)
+people
+  Schema: CREATE TABLE "people" ([id] INTEGER, [name] TEXT, [email] TEXT, [age] INTEGER, PRIMARY KEY([id]))
+
+
 # Show table contents
 $ bin/sql-utils rows examples/test.db people
-
+(id 1 name Alice email alice@example.com age 30)
+(id 2 name Bob email bob@example.com age 25)
+(id 3 name Carol email carol@example.com age 35)
 
 # Filter and order results
 $ bin/sql-utils rows examples/test.db people \
   --where "age > 25" \
   --order "name DESC" \
   --limit 10
-#+end_src
-
-*** Usage Examples
-
-List tables in a database:
-
-#+begin_src sh
-$ bin/sql-utils tables examples/test.db
-test_table
-test_table_2
-test_table_3
-#+end_src
-
-View rows in a table:
-
-#+begin_src sh
-$ bin/sql-utils rows examples/test.db test_table
-(id 22 name PARENT_FOO parent_id NIL)
-(id 44 name CHILD_FOO_1 parent_id 22)
-#+end_src
-
-Insert records into a table:
-
-#+begin_src sh
-# Insert a single record
-$ echo '(:name "FOO")' | bin/sql-utils insert test.db chickens -
-
-# Insert multiple records
-$ echo '((:id 82 :name "BAZ" :parent_id 44) (:id 67 :name "BUB" :parent_id 44))' | bin/sql-utils insert test.db chickens -
-
-# Insert with primary key
-$ echo '(:id 1 :name "BAR")' | bin/sql-utils insert test.db chickens --pk id -
+(id 3 name Carol email carol@example.com age 35)
+(id 1 name Alice email alice@example.com age 30)
 #+end_src
 
 Delete records:
