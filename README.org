@@ -139,6 +139,15 @@ This will create an executable at =bin/sql-utils=.
   - =--replace= - Replace existing table
   - =--strict= - Apply STRICT mode
 
+- =delete-record= - Delete a single row by primary key value(s)
+
+- =delete-where= - Delete rows matching a WHERE clause
+  - =--where= - WHERE clause for deletion
+  - =--analyze= - Run ANALYZE after deletion
+
+- =drop= - Drop/delete a table
+  - =--ignore= - Skip if table doesn't exist
+
 - =tables= - List tables in the database
   - =--fts4= - Show only FTS4 enabled tables
   - =--fts5= - Show only FTS5 enabled tables  
@@ -248,6 +257,21 @@ $ echo '((:id 82 :name "BAZ" :parent_id 44) (:id 67 :name "BUB" :parent_id 44))'
 
 # Insert with primary key
 $ echo '(:id 1 :name "BAR")' | bin/sql-utils insert test.db chickens --pk id -
+#+end_src
+
+Delete records:
+#+begin_src sh
+# Delete a single record by primary key
+$ bin/sql-utils delete-record test.db people 1
+
+# Delete records matching a condition
+$ bin/sql-utils delete-where test.db people --where "age < 18"
+
+# Delete all records in a table
+$ bin/sql-utils delete-where test.db people
+
+# Drop/delete an entire table
+$ bin/sql-utils drop test.db old_table --ignore
 #+end_src
 
 ** Contributing
