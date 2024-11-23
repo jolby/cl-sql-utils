@@ -253,8 +253,8 @@
          (sql
           (format nil "DELETE FROM [~A] WHERE ~A" (name table)
                   (str:join " AND " wheres))))
-    (dbi:with-transaction (connection (db table))
-      (execute (db table) sql pk-values)))
+    ;; (format t "~&DELETE: ~A, WHERE: ~A~%" sql pk-values)
+    (execute (db table) sql pk-values))
   table)
 
 (defmethod delete-where ((table table) &key where where-args analyze)
