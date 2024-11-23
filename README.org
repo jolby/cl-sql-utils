@@ -213,6 +213,7 @@ $ bin/sql-utils tables examples/test.db
 test_table
 test_table_2
 test_table_3
+people
 
 # List all tables showing schema
 $ bin/sql-utils tables examples/test.db --schema
@@ -256,16 +257,16 @@ $ bin/sql-utils rows examples/test.db people \
 Delete records:
 #+begin_src sh
 # Delete a single record by primary key
-$ bin/sql-utils delete-record test.db people 1
+$ bin/sql-utils delete-record examples/test.db people 1
 
 # Delete records matching a condition
-$ bin/sql-utils delete-where test.db people --where "age < 18"
+$ bin/sql-utils delete-where examples/test.db people --where "age < 18"
 
 # Delete all records in a table
-$ bin/sql-utils delete-where test.db people
+$ bin/sql-utils delete-where examples/test.db people
 
 # Drop/delete an entire table
-$ bin/sql-utils drop test.db old_table --ignore
+$ bin/sql-utils drop examples/test.db old_table --ignore
 #+end_src
 
 ** Contributing
