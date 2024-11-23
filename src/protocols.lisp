@@ -128,6 +128,9 @@
 
 (defgeneric value-or-default (table key value))
 
+(defgeneric default-values (queryable)
+  (:documentation "Returns a map of column names to their default values"))
+
 (defgeneric delete-record (table pk-values)
   (:documentation "Delete row matching the specified primary key"))
 
